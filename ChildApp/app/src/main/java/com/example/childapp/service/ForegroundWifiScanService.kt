@@ -38,9 +38,9 @@ class ForegroundWifiScanService : Service() {
     private lateinit var receiver: WifiScanReceiver
 
     private val processor = WifiScanProcessor(
-        windowSize = 10,
-        thresholdDbm = -45,
-        stableDecisionsNeeded = 3
+        windowSize = 5,
+        thresholdDbm = -60,
+        stableDecisionsNeeded = 2
     )
 
     private val repo = AttendanceRepository()
@@ -153,7 +153,7 @@ class ForegroundWifiScanService : Service() {
                     Notifications.foregroundNotification(this, "Wi-Fi/Location permissions missing")
                 )
             }
-            delay(100)
+            delay(5000)
         }
     }
 

@@ -124,11 +124,11 @@ class MainActivity : ComponentActivity() {
                                     enabled = state.permissionsGranted && !state.serviceRunning,
                                     onClick = {
                                         val i = Intent(context, ForegroundWifiScanService::class.java).apply {
-                                            putExtra(ForegroundWifiScanService.EXTRA_CHILD_ID, "no7Cldaej69rPhDl50Gz")
+                                            putExtra(ForegroundWifiScanService.EXTRA_CHILD_ID, "s4991779")
                                             putExtra(ForegroundWifiScanService.EXTRA_CHILD_NAME, "Gino")
                                             putExtra(ForegroundWifiScanService.EXTRA_CHILD_SURNAME, "Paoli")
-                                            putExtra(ForegroundWifiScanService.EXTRA_TARGET_SSID, "Home&Life SuperWiFi-B06F")
-                                            putExtra(ForegroundWifiScanService.EXTRA_TARGET_BSSID, "bc:cf:4f:11:b0:6f")
+                                            putExtra(ForegroundWifiScanService.EXTRA_TARGET_SSID, "badc0ff3")
+                                            putExtra(ForegroundWifiScanService.EXTRA_TARGET_BSSID, "ce:98:91:05:d6:6c")
                                         }
                                         ContextCompat.startForegroundService(context, i)
                                         vm.setServiceRunning(true)
