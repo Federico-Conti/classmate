@@ -101,12 +101,12 @@ class MyAppRepository(
 
     data class AttendancePage(
         val records: List<AttendanceRecord>,
-        val nextCursor: DocumentSnapshot?
+        val nextCursor: DocumentSnapshot? // current cursor
     )
 
     /**
-     * Paging per History: prende una pagina di record ordinati per time desc.
-     * startAfterSnapshot = cursore della pagina precedente (null per prima pagina).
+     * Paging for History: takes a page of records sorted by time desc.
+     * startAfterSnapshot = previous page cursor (null for first page).
      */
     suspend fun getAttendancePage(
         childId: String,
@@ -125,8 +125,8 @@ class MyAppRepository(
         val snap = q.get().await()
         val docs = snap.documents
         val records = docs.map { it.toAttendanceRecord() }
-        val next = if (docs.size == pageSize.toInt()) docs.lastOrNull() else null // <-- solo se c'è ancora una pagina
-        return AttendancePage(records = records, nextCursor = next)
+        val next = if (docs.size == pageSize.toInt()) docs.lastOrNull() else null
+        return AttendancePage(records = records, nextCursor = next) // update cursor
     }
 
     private fun DocumentSnapshot.toAttendanceRecord(): AttendanceRecord {

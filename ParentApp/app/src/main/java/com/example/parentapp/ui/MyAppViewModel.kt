@@ -7,6 +7,7 @@ import com.example.parentapp.data.MyAppRepository
 import com.example.parentapp.model.AttendanceRecord
 import com.example.parentapp.model.Child
 import com.example.parentapp.model.Parent
+import com.example.parentapp.model.HistoryState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -142,7 +143,6 @@ class MyAppViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { repo.getChildren(childIds) }
                 .onSuccess { list ->
                     _childrenUiState.value = UiState.Data(list)
-                    // Auto selezione primo child
                     if (list.isNotEmpty() && _selectedChildId.value == null) {
                         _selectedChildId.value = list.first().id
                     }
@@ -174,7 +174,7 @@ class MyAppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // -------- History API --------
+    // History
 
     fun refreshHistory(childId: String) {
         viewModelScope.launch {
@@ -210,7 +210,6 @@ class MyAppViewModel(app: Application) : AndroidViewModel(app) {
                 .onSuccess { page ->
                     historyCursor = page.nextCursor
                     _historyUiState.update { oldState ->
-                        // Usa una chiave univoca, ad esempio record.id o record.time
                         val existingKeys = oldState.items.map { it.id }.toSet()
                         val filteredNewRecords = page.records.filter { it.id !in existingKeys }
                         val newItems = oldState.items + filteredNewRecords
@@ -242,11 +241,3 @@ enum class PresenceStatus {
     NotAtSchool,
     NoRecords
 }
-
-data class HistoryState(
-    val items: List<AttendanceRecord> = emptyList(),
-    val isRefreshing: Boolean = false,
-    val isLoadingMore: Boolean = false,
-    val endReached: Boolean = false,
-    val error: String? = null
-)

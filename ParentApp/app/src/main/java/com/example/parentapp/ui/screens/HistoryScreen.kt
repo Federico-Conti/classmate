@@ -29,7 +29,7 @@ fun HistoryScreen(
     onBack: () -> Unit
 ) {
     val state = vm.historyUiState.collectAsState().value
-    val listState = rememberLazyListState()
+    val listState = rememberLazyListState() //monitors the scroll position of the LazyColumn
 
     // Reload every time open the screen (or change childId)
     LaunchedEffect(childId) {
