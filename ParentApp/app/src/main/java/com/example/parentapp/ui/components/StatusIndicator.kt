@@ -17,7 +17,7 @@ fun StatusIndicator(
     val (symbol, text) = when (status) {
         PresenceStatus.AtSchool -> "✓" to "At school"
         PresenceStatus.NotAtSchool -> "✕" to "Not at school"
-        PresenceStatus.NoRecords -> "—" to "No attendance records available"
+        PresenceStatus.NoRecords -> "—" to "No attendance"
     }
 
     Row(

@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
@@ -30,12 +31,12 @@ fun HistoryScreen(
     val state = vm.historyUiState.collectAsState().value
     val listState = rememberLazyListState()
 
-    // Ricarica ogni volta che apro la schermata (o cambio childId)
+    // Reload every time open the screen (or change childId)
     LaunchedEffect(childId) {
         vm.refreshHistory(childId)
     }
 
-    // Infinite scroll: se sto arrivando in fondo, carico altro
+    // Infinite scroll
     LaunchedEffect(listState.firstVisibleItemIndex, state.items.size, state.endReached, state.isLoadingMore) {
         if (!state.endReached && !state.isLoadingMore) {
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
@@ -53,7 +54,7 @@ fun HistoryScreen(
                 title = { Text("Attendance history") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {

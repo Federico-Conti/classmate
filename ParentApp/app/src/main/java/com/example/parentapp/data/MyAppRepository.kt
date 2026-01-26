@@ -20,12 +20,12 @@ class MyAppRepository(
 ) {
     private val prefs = UserPreferencesRepository(context)
 
-    // ---------- DataStore ----------
+    // DataStore4
     val parentIdFlow: Flow<String?> = prefs.parentIdFlow
     suspend fun saveParentId(parentId: String) = prefs.saveParentId(parentId)
     suspend fun clearParentId() = prefs.clearParentId()
 
-    // ---------- Firestore ----------
+    // Firestore
     suspend fun getParent(parentId: String): Parent? {
         val doc = firestore.collection("parents").document(parentId).get().await()
         if (!doc.exists()) return null
@@ -72,10 +72,13 @@ class MyAppRepository(
     }
 
     /**
-     * Listener realtime sugli ultimi N record.
-     * Ogni nuovo record su Firestore aggiorna la UI automaticamente.
+     * Real-time listener on the last N records.
+     * Each new record on Firestore automatically updates the UI.
+     *
+     * addSnapshotListener: opens a two-way communication channel. Every time data changes in the DB, Firestore "pushes" a new data packet (snap) to your app.
      */
     fun listenLastAttendance(childId: String, limit: Long = 5): Flow<List<AttendanceRecord>> = callbackFlow {
+        //bidirectional callback channel register
         var reg: ListenerRegistration? = null
 
         reg = firestore.collection("childrens").document(childId)
@@ -84,7 +87,6 @@ class MyAppRepository(
             .limit(limit)
             .addSnapshotListener { snap, err ->
                 if (err != null) {
-                    // In caso di errore chiudiamo il flow con eccezione
                     close(err)
                     return@addSnapshotListener
                 }

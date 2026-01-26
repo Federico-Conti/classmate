@@ -6,9 +6,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -30,15 +31,20 @@ fun HomeScreen(
     onOpenHistory: (childId: String) -> Unit,
     onLogout: () -> Unit
 ) {
+    val parent = vm.parent.collectAsState().value
     val childrenState = vm.childrenUiState.collectAsState().value
     val selectedChild = vm.selectedChild.collectAsState().value
     val status = vm.childPresenceStatus.collectAsState().value
     val last5 = vm.last5Records.collectAsState().value
+    val displayName = parent?.fullName?.takeIf { it.isNotBlank() }
+        ?: parent?.id?.takeIf { it.isNotBlank() }
+        ?: "Home"
+
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(selectedChild?.fullName ?: "Home") },
+                title = { Text(displayName) },
                 actions = {
                     IconButton(
                         onClick = {
@@ -49,7 +55,7 @@ fun HomeScreen(
                     ) { Icon(Icons.Default.History, contentDescription = "History") }
 
                     IconButton(onClick = onLogout) {
-                        Icon(Icons.Default.Logout, contentDescription = "Logout")
+                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout")
                     }
                 }
             )
@@ -71,7 +77,7 @@ fun HomeScreen(
                 }
                 is UiState.Data -> {
                     if (childrenState.value.isEmpty()) {
-                        Text("No children linked to this parent.")
+                        Text("No children found, contact the school.")
                     } else {
                         ChildSelector(
                             children = childrenState.value,
@@ -91,7 +97,7 @@ fun HomeScreen(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Last updates", style = MaterialTheme.typography.titleMedium)
+                    Text("Last updates", style = MaterialTheme.typography.titleSmall)
 
                     when (last5) {
                         is UiState.Loading -> {
@@ -127,8 +133,8 @@ private fun LastRecordsTable(records: List<AttendanceRecord>) {
     LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(max = 240.dp), // Limita l'altezza così non occupa tutto lo schermo
-        userScrollEnabled = false // non scrollabile, è solo preview!
+            .heightIn(max = 240.dp),
+        userScrollEnabled = false
     ) {
         item {
             // HEADER
@@ -147,7 +153,11 @@ private fun LastRecordsTable(records: List<AttendanceRecord>) {
                     style = MaterialTheme.typography.labelLarge
                 )
             }
-            Divider()
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 4.dp),
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
         }
 
         items(records) { r ->
@@ -162,8 +172,6 @@ private fun LastRecordsTable(records: List<AttendanceRecord>) {
                 val typeColor = if (r.isEntry) com.example.parentapp.ui.theme.Success else com.example.parentapp.ui.theme.ErrorRed
                 Text(typeLabel, color = typeColor)
             }
-            // Divider tra i record se vuoi
-            // Divider()
         }
     }
 }

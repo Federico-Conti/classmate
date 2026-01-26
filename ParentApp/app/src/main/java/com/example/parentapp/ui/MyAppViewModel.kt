@@ -7,6 +7,7 @@ import com.example.parentapp.data.MyAppRepository
 import com.example.parentapp.model.AttendanceRecord
 import com.example.parentapp.model.Child
 import com.example.parentapp.model.Parent
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -14,11 +15,11 @@ class MyAppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = MyAppRepository(app.applicationContext)
 
-    // ---- Navigation start destination (Login/Home) ----
+    // Navigation start destination (Login/Home)
     private val _startDestination = MutableStateFlow("login")
     val startDestination: StateFlow<String> = _startDestination.asStateFlow()
 
-    // ---- Login ----
+    // Login
     val parentIdInput = MutableStateFlow("")
     private val _loginUiState = MutableStateFlow<UiState<Parent>>(UiState.Idle)
     val loginUiState: StateFlow<UiState<Parent>> = _loginUiState.asStateFlow()
@@ -26,7 +27,7 @@ class MyAppViewModel(app: Application) : AndroidViewModel(app) {
     private val _parent = MutableStateFlow<Parent?>(null)
     val parent: StateFlow<Parent?> = _parent.asStateFlow()
 
-    // ---- Children ----
+    // Children
     private val _childrenUiState = MutableStateFlow<UiState<List<Child>>>(UiState.Idle)
     val childrenUiState: StateFlow<UiState<List<Child>>> = _childrenUiState.asStateFlow()
 
@@ -39,24 +40,25 @@ class MyAppViewModel(app: Application) : AndroidViewModel(app) {
             list.firstOrNull { it.id == id }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    // ---- Realtime last 5 records ----
+    @OptIn(ExperimentalCoroutinesApi::class)
     val last5Records: StateFlow<UiState<List<AttendanceRecord>>> =
         _selectedChildId
-            .filterNotNull()
-            .distinctUntilChanged()
+            //flatMapLatest ensures listening to the last selected ID on _selectedChildId.
             .flatMapLatest { childId ->
-                repo.listenLastAttendance(childId, limit = 5)
-                    .map< List<AttendanceRecord>, UiState<List<AttendanceRecord>> > { UiState.Data(it) }
-                    .onStart { emit(UiState.Loading) }
-                    .catch { e -> emit(UiState.Error(e.message ?: "Realtime listener error")) }
+                if (childId == null) {
+                    // If no child is selected (logout), to Idle.
+                    flowOf(UiState.Idle)
+                } else {
+                    repo.listenLastAttendance(childId, limit = 5)
+                        .map<List<AttendanceRecord>, UiState<List<AttendanceRecord>>> {
+                            UiState.Data(it)
+                        }
+                        .onStart { emit(UiState.Loading) }
+                        .catch { e -> emit(UiState.Error(e.message ?: "Realtime listener error")) }
+                }
             }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Idle)
-
-    /**
-     * Stato derivato: "At school" se ultimo record è entry,
-     * "Not at school" se ultimo record è exit,
-     * null se non ci sono record (mostrare placeholder).
-     */
+            .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5_000), initialValue = UiState.Idle
+            )
     val childPresenceStatus: StateFlow<PresenceStatus> =
         last5Records.map { state ->
             val records = (state as? UiState.Data)?.value
@@ -75,13 +77,12 @@ class MyAppViewModel(app: Application) : AndroidViewModel(app) {
     private var historyCursor: com.google.firebase.firestore.DocumentSnapshot? = null
 
     init {
-        // Se DataStore ha parentId => auto login "soft" (carico parent + children)
+        // If DataStore has parentId => auto login
         viewModelScope.launch {
             repo.parentIdFlow.collect { saved ->
                 if (!saved.isNullOrBlank()) {
                     _startDestination.value = "home"
                     parentIdInput.value = saved
-                    // Carico dati se non già presenti
                     if (_parent.value == null) {
                         loadParentAndChildren(saved)
                     }
@@ -99,14 +100,14 @@ class MyAppViewModel(app: Application) : AndroidViewModel(app) {
     fun login() {
         val id = parentIdInput.value.trim()
         if (id.isBlank()) {
-            _loginUiState.value = UiState.Error("Parent ID is required")
+            _loginUiState.value = UiState.Error("username is required")
             return
         }
         viewModelScope.launch {
             _loginUiState.value = UiState.Loading
             val parent = repo.getParent(id)
             if (parent == null) {
-                _loginUiState.value = UiState.Error("Parent not found")
+                _loginUiState.value = UiState.Error("username not found")
                 return@launch
             }
             repo.saveParentId(id)
@@ -125,11 +126,11 @@ class MyAppViewModel(app: Application) : AndroidViewModel(app) {
                 _parent.value = parent
                 loadChildren(parent.childrens)
             } else {
-                // Se non esiste più, pulisco e torno al login
+                // If the parent no longer exists, clean
                 repo.clearParentId()
                 _parent.value = null
-                _childrenUiState.value = UiState.Idle
                 _selectedChildId.value = null
+                _childrenUiState.value = UiState.Idle
                 _startDestination.value = "login"
             }
         }
@@ -160,12 +161,14 @@ class MyAppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun logout() {
         viewModelScope.launch {
+            // FIRST, I reset the selected child
+            _selectedChildId.value = null
+
             repo.clearParentId()
             _parent.value = null
             parentIdInput.value = ""
             _loginUiState.value = UiState.Idle
             _childrenUiState.value = UiState.Idle
-            _selectedChildId.value = null
             resetHistory()
             _startDestination.value = "login"
         }

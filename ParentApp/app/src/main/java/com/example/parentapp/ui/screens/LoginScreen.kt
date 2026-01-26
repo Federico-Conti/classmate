@@ -26,7 +26,7 @@ fun LoginScreen(
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(title = { Text("ParentApp") })
+            CenterAlignedTopAppBar(title = { Text("Parent App") })
         }
     ) { padding ->
         Column(
@@ -36,7 +36,7 @@ fun LoginScreen(
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Enter your Parent ID to continue", style = MaterialTheme.typography.titleMedium)
+            Text("enter the username provided by the school", style = MaterialTheme.typography.titleMedium)
 
             OutlinedTextField(
                 value = parentIdInput,
@@ -62,7 +62,6 @@ fun LoginScreen(
                     Text("Login")
                 }
             }
-
             if (uiState is UiState.Error) {
                 Text(
                     text = uiState.message,

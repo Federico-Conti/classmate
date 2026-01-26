@@ -23,13 +23,14 @@ fun ChildSelector(
     ) {
         OutlinedTextField(
             modifier = Modifier
-                .menuAnchor()
+                .menuAnchor(type = MenuAnchorType.PrimaryNotEditable, enabled = true)
                 .fillMaxWidth(),
             readOnly = true,
             value = selected?.fullName ?: "",
             onValueChange = {},
-            label = { Text("Select child") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) }
+            label = { Text("my children") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
         )
 
         ExposedDropdownMenu(
@@ -40,9 +41,10 @@ fun ChildSelector(
                 DropdownMenuItem(
                     text = { Text(child.fullName) },
                     onClick = {
-                        expanded = false
                         onSelect(child)
-                    }
+                        expanded = false
+                    },
+                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                 )
             }
         }

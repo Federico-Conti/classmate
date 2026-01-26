@@ -48,7 +48,7 @@ private fun ParentAppNavHost(
 ) {
     val navController = rememberNavController()
 
-    // Se ho parentId salvato => vado direttamente a Home
+    // saved parentId in DS =>  Home
     val startDestination by vm.startDestination.collectAsState()
 
     NavHost(
