@@ -2,20 +2,28 @@ package com.example.parentapp.ui.screens
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.filled.Login
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.parentapp.model.AttendanceRecord
 import com.example.parentapp.ui.MyAppViewModel
+import com.example.parentapp.ui.theme.*
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -47,11 +55,10 @@ fun HistoryScreen(
         }
     }
 
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Attendance history") },
+                title = { Text("History") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -65,48 +72,106 @@ fun HistoryScreen(
             )
         }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
-                .padding(padding)
-                .padding(16.dp)
                 .fillMaxSize()
+                .background(Background)
+                .padding(padding)
         ) {
-            if (state.isRefreshing) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
-            }
-
-            if (state.error != null) {
-                Text(state.error, color = MaterialTheme.colorScheme.error)
-                Spacer(Modifier.height(8.dp))
-            }
-
-            if (!state.isRefreshing && state.items.isEmpty()) {
-                Text("No records available")
-                return@Column
-            }
-
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            Column(
+                modifier = Modifier.fillMaxSize()
             ) {
-                itemsIndexed(state.items) { _, item ->
-                    HistoryRow(item)
+                if (state.isRefreshing) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
 
-                item {
-                    if (state.isLoadingMore) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                            CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
-                        }
-                    } else if (state.endReached) {
-                        Spacer(Modifier.height(10.dp))
+                if (state.error != null) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(AppDimensions.spacingLarge),
+                        color = ErrorContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
                         Text(
-                            "End of list",
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.fillMaxWidth()
+                            text = state.error,
+                            color = OnErrorContainer,
+                            modifier = Modifier.padding(AppDimensions.spacingMedium),
+                            style = MaterialTheme.typography.bodyMedium
                         )
+                    }
+                }
+
+
+                if (!state.isRefreshing && state.items.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(AppDimensions.spacingSmall)
+                        ) {
+                            Text(
+                                text = "📋",
+                                style = MaterialTheme.typography.displayMedium
+                            )
+                            Text(
+                                text = "No attendance recorded",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    return@Column
+                }
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = AppDimensions.spacingLarge,
+                        end = AppDimensions.spacingLarge,
+                        top = AppDimensions.spacingMedium,
+                        bottom = AppDimensions.spacingLarge
+                    )
+                ) {
+                    itemsIndexed(state.items) { index, item ->
+                        TimelineEventItem(
+                            record = item,
+                            isFirst = index == 0,
+                            isLast = index == state.items.lastIndex && state.endReached
+                        )
+                    }
+
+                    item {
+                        if (state.isLoadingMore) {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = AppDimensions.spacingLarge),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(AppDimensions.progressIndicatorSize),
+                                    strokeWidth = AppDimensions.progressIndicatorStroke
+                                )
+                            }
+                        } else if (state.endReached && state.items.isNotEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = AppDimensions.spacingLarge),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "End of list",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = OnSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -116,25 +181,189 @@ fun HistoryScreen(
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-private fun HistoryRow(record: AttendanceRecord) {
-    Card(elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-        Row(
+private fun TimelineEventItem(
+    record: AttendanceRecord,
+    isFirst: Boolean,
+    isLast: Boolean
+) {
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+    ) {
+        TimelineIndicator(
+            isEntry = record.isEntry,
+            isFirst = isFirst,
+            isLast = isLast
+        )
+
+        Spacer(modifier = Modifier.width(AppDimensions.spacingLarge))
+
+
+        Box(modifier = Modifier.padding(bottom = AppDimensions.timelineItemSpacing)) {
+            EventCard(record = record, isFirst = isFirst)
+        }
+    }
+}
+@Composable
+private fun TimelineIndicator(
+    isEntry: Boolean,
+    isFirst: Boolean,
+    isLast: Boolean
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(40.dp)
+    ) {
+
+        Box(
             modifier = Modifier
-                .padding(14.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+                .width(AppDimensions.timelineLineWidth)
+                .weight(if (isFirst) 0.0001f else 0.2f)
+                .background(if (isFirst) Color.Transparent else OutlineVariant)
+        )
+
+
+        Box(
+            modifier = Modifier.padding(vertical = 4.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Text(formatDateTime(record.time))
-            val typeLabel = if (record.isEntry) "Entry" else "Exit"
-            val typeColor = if (record.isEntry) com.example.parentapp.ui.theme.Success else com.example.parentapp.ui.theme.ErrorRed
-            Text(typeLabel, color = typeColor)
+            if (isFirst) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(if (isEntry) EntryColor else ExitColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isEntry) Icons.Default.Login else Icons.Default.Logout,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(AppDimensions.timelineCircleSize)
+                        .clip(CircleShape)
+                        .background(OutlineVariant)
+                )
+            }
+        }
+
+
+        Box(
+            modifier = Modifier
+                .width(AppDimensions.timelineLineWidth)
+                .weight(1f)
+                .background(if (isLast) Color.Transparent else OutlineVariant)
+        )
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+private fun EventCard(
+    record: AttendanceRecord,
+    isFirst: Boolean
+) {
+    val backgroundColor = if (record.isEntry) EntryBackground else ExitBackground
+    val textColor = if (record.isEntry) EntryColor else ExitColor
+    val eventType = if (record.isEntry) "ENTRY" else "EXIT"
+    val icon = if (record.isEntry) Icons.AutoMirrored.Filled.Login else Icons.Default.Logout
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isFirst) AppDimensions.cardElevation else AppDimensions.historyCardElevation
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(AppDimensions.historyCardPadding)
+        ) {
+            // Header row with date
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                // Event type badge
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    // Leading icon
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(backgroundColor),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = textColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(AppDimensions.spacingMedium))
+
+                    // Event type text
+                    Text(
+                        text = eventType,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = textColor,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
+                }
+
+                // Date timestamp
+                Text(
+                    text = formatDate(record.time),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = OnSurfaceVariant
+                )
+            }
+
+            Spacer(modifier = Modifier.height(AppDimensions.spacingSmall))
+
+            // Time and location
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 48.dp)
+            ) {
+                Text(
+                    text = formatTime(record.time),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OnSurface
+                )
+
+            }
         }
     }
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
-private fun formatDateTime(epochMillis: Long): String {
-    val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+private fun formatDate(epochMillis: Long): String {
+    val formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy")
+        .withZone(ZoneId.systemDefault())
+    return formatter.format(Instant.ofEpochMilli(epochMillis))
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+private fun formatTime(epochMillis: Long): String {
+    val formatter = DateTimeFormatter.ofPattern("hh:mm a")
         .withZone(ZoneId.systemDefault())
     return formatter.format(Instant.ofEpochMilli(epochMillis))
 }

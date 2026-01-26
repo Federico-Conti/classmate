@@ -8,6 +8,7 @@ import com.example.parentapp.model.AttendanceRecord
 import com.example.parentapp.model.Child
 import com.example.parentapp.model.Parent
 import com.example.parentapp.model.HistoryState
+import com.example.parentapp.model.PresenceStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -236,8 +237,3 @@ class MyAppViewModel(app: Application) : AndroidViewModel(app) {
     }
 }
 
-enum class PresenceStatus {
-    AtSchool,
-    NotAtSchool,
-    NoRecords
-}

@@ -6,18 +6,24 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
-import androidx.navigation.compose.*
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.parentapp.ui.MyAppViewModel
 import com.example.parentapp.ui.screens.HistoryScreen
 import com.example.parentapp.ui.screens.HomeScreen
 import com.example.parentapp.ui.screens.LoginScreen
 import com.example.parentapp.ui.theme.ParentAppTheme
+import com.example.parentapp.ui.MyAppViewModel
 
 class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
@@ -25,7 +31,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             ParentAppTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
                     ParentAppNavHost()
                 }
             }
@@ -47,6 +56,8 @@ private fun ParentAppNavHost(
     vm: MyAppViewModel = viewModel()
 ) {
     val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route ?: Routes.Login
 
     // saved parentId in DS =>  Home
     val startDestination by vm.startDestination.collectAsState()
@@ -79,6 +90,17 @@ private fun ParentAppNavHost(
                     vm.logout()
                     navController.navigate(Routes.Login) {
                         popUpTo(Routes.Home) { inclusive = true }
+                    }
+                },
+                currentRoute = currentRoute,
+                onNavigate = { route ->
+                    if (route != currentRoute) {
+                        navController.navigate(route) {
+                            popUpTo(Routes.Home) {
+                                inclusive = (route == Routes.Home)
+                            }
+                            launchSingleTop = true
+                        }
                     }
                 }
             )
