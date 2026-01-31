@@ -14,9 +14,6 @@ class AttendanceRepository(
     private fun attendanceCol(childId: String) =
         childDoc(childId).collection("attendance")
 
-    /**
-     * Ritorna l'ultimo tipo registrato ("entry"/"exit") oppure null se non esiste.
-     */
     suspend fun getLastType(childId: String): String? {
         val snap = attendanceCol(childId)
             .orderBy("time", Query.Direction.DESCENDING)
@@ -28,9 +25,7 @@ class AttendanceRepository(
         return doc.getString("type")
     }
 
-    /**
-     * Inserisce un nuovo record in attendance (docId autogenerato).
-     */
+
     suspend fun addAttendance(childId: String, type: String, time: Timestamp = Timestamp.now()) {
         val data = mapOf(
             "type" to type,
@@ -39,14 +34,4 @@ class AttendanceRepository(
         attendanceCol(childId).add(data).await()
     }
 
-    /**
-     * (Opzionale) crea/aggiorna anagrafica del bambino.
-     */
-    suspend fun upsertChild(childId: String, name: String, surname: String) {
-        val data = mapOf(
-            "name" to name,
-            "surname" to surname
-        )
-        childDoc(childId).set(data).await()
-    }
 }

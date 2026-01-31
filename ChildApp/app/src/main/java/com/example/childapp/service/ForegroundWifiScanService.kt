@@ -24,7 +24,6 @@ import kotlinx.coroutines.launch
 class ForegroundWifiScanService : Service() {
 
     companion object {
-        // In produzione: passali via Intent extras o DataStore
         const val EXTRA_CHILD_ID = "extra_child_id"
         const val EXTRA_CHILD_NAME = "extra_child_name"
         const val EXTRA_CHILD_SURNAME = "extra_child_surname"
@@ -38,9 +37,9 @@ class ForegroundWifiScanService : Service() {
     private lateinit var receiver: WifiScanReceiver
 
     private val processor = WifiScanProcessor(
-        windowSize = 5,
-        thresholdDbm = -60,
-        stableDecisionsNeeded = 2
+        windowSize = 10,
+        thresholdDbm = -45,
+        stableDecisionsNeeded = 3
     )
 
     private val repo = AttendanceRepository()
@@ -153,7 +152,7 @@ class ForegroundWifiScanService : Service() {
                     Notifications.foregroundNotification(this, "Wi-Fi/Location permissions missing")
                 )
             }
-            delay(5000)
+            delay(2500)
         }
     }
 
@@ -170,9 +169,6 @@ class ForegroundWifiScanService : Service() {
         stopSelf()
         super.onTaskRemoved(rootIntent)
     }
-
-
-
 
     private fun notifyWifiState(enabled: Boolean) {
         val intent = Intent("com.example.childapp.WIFI_STATE_CHANGED") // event send

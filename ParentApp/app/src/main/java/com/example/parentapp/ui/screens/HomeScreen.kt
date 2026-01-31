@@ -21,7 +21,7 @@ import com.example.parentapp.ui.components.ChildSelector
 import com.example.parentapp.ui.components.CustomCard
 import com.example.parentapp.ui.components.StatusIndicator
 import com.example.parentapp.ui.theme.*
-import com.example.parentapp.ui.MyAppViewModel
+import com.example.parentapp.ui.ParentViewModel
 import com.example.parentapp.ui.UiState
 import java.time.Instant
 import java.time.ZoneId
@@ -31,7 +31,7 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    vm: MyAppViewModel,
+    vm: ParentViewModel,
     onOpenHistory: (childId: String) -> Unit,
     onLogout: () -> Unit,
     currentRoute: String,

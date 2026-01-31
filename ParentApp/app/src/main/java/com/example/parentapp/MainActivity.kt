@@ -23,7 +23,7 @@ import com.example.parentapp.ui.screens.HistoryScreen
 import com.example.parentapp.ui.screens.HomeScreen
 import com.example.parentapp.ui.screens.LoginScreen
 import com.example.parentapp.ui.theme.ParentAppTheme
-import com.example.parentapp.ui.MyAppViewModel
+import com.example.parentapp.ui.ParentViewModel
 
 class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
@@ -53,7 +53,7 @@ private object Routes {
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 private fun ParentAppNavHost(
-    vm: MyAppViewModel = viewModel()
+    vm: ParentViewModel = viewModel()
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()

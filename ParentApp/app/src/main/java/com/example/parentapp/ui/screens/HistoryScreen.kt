@@ -22,7 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.parentapp.model.AttendanceRecord
-import com.example.parentapp.ui.MyAppViewModel
+import com.example.parentapp.ui.ParentViewModel
 import com.example.parentapp.ui.theme.*
 import java.time.Instant
 import java.time.ZoneId
@@ -33,7 +33,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun HistoryScreen(
     childId: String,
-    vm: MyAppViewModel,
+    vm: ParentViewModel,
     onBack: () -> Unit
 ) {
     val state = vm.historyUiState.collectAsState().value

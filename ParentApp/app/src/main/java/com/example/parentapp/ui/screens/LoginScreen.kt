@@ -50,7 +50,7 @@ fun LoginScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Icon/Logo area
+
             Surface(
                 modifier = Modifier.size(100.dp),
                 color = MaterialTheme.colorScheme.primaryContainer,

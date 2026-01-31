@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
-class MyAppRepository(
+class ParentRepository(
     context: Context,
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
@@ -42,10 +42,7 @@ class MyAppRepository(
         )
     }
 
-    /**
-     * Recupera i dati dei children usando documentId whereIn (max 10 per query),
-     * quindi chunking se la lista è più lunga.
-     */
+
     suspend fun getChildren(childIds: List<String>): List<Child> {
         if (childIds.isEmpty()) return emptyList()
 
@@ -67,7 +64,6 @@ class MyAppRepository(
             }
         }
 
-        // Mantengo un ordine stabile (alfabetico)
         return results.sortedWith(compareBy({ it.surname.lowercase() }, { it.name.lowercase() }))
     }
 
@@ -75,7 +71,7 @@ class MyAppRepository(
      * Real-time listener on the last N records.
      * Each new record on Firestore automatically updates the UI.
      *
-     * addSnapshotListener: opens a two-way communication channel. Every time data changes in the DB, Firestore "pushes" a new data packet (snap) to your app.
+     * addSnapshotListener: opens a two-way communication channel. Every time data changes in the DB, Firestore "pushes" a new data packet (snap) in app.
      */
     fun listenLastAttendance(childId: String, limit: Long = 5): Flow<List<AttendanceRecord>> = callbackFlow {
         //bidirectional callback channel register
@@ -91,12 +87,12 @@ class MyAppRepository(
                     return@addSnapshotListener
                 }
                 val records = snap?.documents.orEmpty().map { doc ->
-                    doc.toAttendanceRecord()
+                    doc.toAttendanceRecord() //cast into UiState.Data(records)
                 }
-                trySend(records)
+                trySend(records) //send 5 last records to Coroutine
             }
 
-        awaitClose { reg?.remove() }
+        awaitClose { reg?.remove() } // It does not end until the Flow is cancelled.
     }
 
     data class AttendancePage(

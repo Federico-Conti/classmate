@@ -3,7 +3,7 @@ package com.example.parentapp.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.parentapp.data.MyAppRepository
+import com.example.parentapp.data.ParentRepository
 import com.example.parentapp.model.AttendanceRecord
 import com.example.parentapp.model.Child
 import com.example.parentapp.model.Parent
@@ -13,9 +13,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-class MyAppViewModel(app: Application) : AndroidViewModel(app) {
+class ParentViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val repo = MyAppRepository(app.applicationContext)
+    private val repo = ParentRepository(app.applicationContext)
 
     // Navigation start destination (Login/Home)
     private val _startDestination = MutableStateFlow("login")
@@ -49,13 +49,13 @@ class MyAppViewModel(app: Application) : AndroidViewModel(app) {
             .flatMapLatest { childId ->
                 if (childId == null) {
                     // If no child is selected (logout), to Idle.
-                    flowOf(UiState.Idle)
+                    flowOf(UiState.Idle) //return a Flow type
                 } else {
-                    repo.listenLastAttendance(childId, limit = 5)
+                    repo.listenLastAttendance(childId, limit = 5) // return a Flow type
                         .map<List<AttendanceRecord>, UiState<List<AttendanceRecord>>> {
                             UiState.Data(it)
                         }
-                        .onStart { emit(UiState.Loading) }
+                        .onStart { emit(UiState.Loading) } //is issued loading state before query the database
                         .catch { e -> emit(UiState.Error(e.message ?: "Realtime listener error")) }
                 }
             }
