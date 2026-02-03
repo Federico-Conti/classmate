@@ -1,0 +1,51 @@
+# Classmate Simulation 
+
+This folder contains Python scripts to simulate children's attendance on the ParentApp application.
+
+---
+
+## 1. `add-attendance.py`
+
+Registers an entry ("entry") or exit ("exit") event for a specific child in the database.
+
+```bash
+python add-attendance.py <child_id> en
+```
+
+```bash
+python add-attendance.py <child_id> ex
+```
+
+- `<child_id>`: Child's ID.
+- Use `en` to register entry, `ex` to register exit.
+
+---
+
+## 2. `del-attendance.py`
+
+Deletes all attendance records for a specific child.
+
+```bash
+python del-attendance.py <child_id>
+```
+
+- `<child_id>`: Child's ID.
+- Confirm by typing `y` when prompted.
+
+---
+
+## 3. `gen-attendance.py`
+
+Generates and inserts fake attendance data (entry/exit) for 56 consecutive school days for a child.
+
+```bash
+python gen-attendance.py
+```
+
+- Enter the child's ID when prompted.
+
+---
+
+**Note:** 
+
+All scripts require the `serviceAccountKey.json` file for Firebase authentication in the same folder.
