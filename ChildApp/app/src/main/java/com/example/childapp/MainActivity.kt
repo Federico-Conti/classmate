@@ -121,11 +121,12 @@ class MainActivity : ComponentActivity() {
                             serviceRunning = state.serviceRunning,
                             onStartClick = {
                                 val i = Intent(context, ForegroundWifiScanService::class.java).apply {
-                                    putExtra(ForegroundWifiScanService.EXTRA_CHILD_ID, "s4991779")
-                                    putExtra(ForegroundWifiScanService.EXTRA_CHILD_NAME, "Gino")
-                                    putExtra(ForegroundWifiScanService.EXTRA_CHILD_SURNAME, "Paoli")
-                                    putExtra(ForegroundWifiScanService.EXTRA_TARGET_SSID, "badc0ff3")
-                                    putExtra(ForegroundWifiScanService.EXTRA_TARGET_BSSID, "2a:89:24:33:08:02")
+                                    putExtra(ForegroundWifiScanService.EXTRA_CHILD_ID, getString(R.string.config_child_id))
+                                    putExtra(ForegroundWifiScanService.EXTRA_CHILD_NAME, getString(R.string.config_child_name))
+                                    putExtra(ForegroundWifiScanService.EXTRA_CHILD_SURNAME, getString(R.string.config_child_surname))
+                                    putExtra(ForegroundWifiScanService.EXTRA_TARGET_SSID, getString(R.string.config_target_ssid))
+                                    putExtra(ForegroundWifiScanService.EXTRA_TARGET_BSSID, getString(R.string.config_target_bssid))
+
                                 }
                                 ContextCompat.startForegroundService(context, i) // onCreate() (if the service does not yet exist) && onStartCommand(intent, flags, startId)
                                 vm.setServiceRunning(true)

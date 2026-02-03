@@ -16,21 +16,19 @@ class WifiScanProcessor(
     private var stableCount: Int = 0
 
     fun onNewRssiSample(levelDbm: Int): String? {
-        Log.d("WifiScanProcessor", "stableCount: $stableCount")
         samples.add(levelDbm)
+        Log.d("WifiScanProcessor", "Sample size: ${samples.size}")
 
         if (samples.size < windowSize) return null
-        else if (samples.size > windowSize) {
-            repeat(windowSize / 3) { if (samples.isNotEmpty()) samples.removeAt(0) }
-            return null
-        }
 
         val avg = weightedAverage(samples)
         Log.d("WifiScanProcessor", "AVG: $avg")
+
         previous = state
         state = if (avg > thresholdDbm) State.IN else State.OUT
 
         stableCount = if (state != previous) 0 else stableCount + 1
+        Log.d("WifiScanProcessor", "stableCount: $stableCount")
 
         repeat(windowSize / 3) { if (samples.isNotEmpty()) samples.removeAt(0) }
 

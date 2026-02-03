@@ -17,19 +17,20 @@ class WifiScanReceiver(
 
     @SuppressLint("MissingPermission")
     override fun onReceive(context: Context, intent: Intent) {
-        val results = wifiManager.scanResults ?: return
+
+        val results = wifiManager.scanResults
 
         val target = results.firstOrNull { r ->
             val ssidOk = r.SSID == targetSsid
             val bssidOk = targetBssid?.let { it.equals(r.BSSID, ignoreCase = true) } ?: true
-            ssidOk && bssidOk
-        } ?: return
+            ssidOk || bssidOk
+        }
 
         if (target != null) {
             Log.d("WifiScanReceiver", "WIFI Target found: $targetSsid, level=${target.level}")
             onTargetFound(target)
         } else {
-            Log.w("WifiScanReceiver", "SSID Target NOT found")
+            Log.w("WifiScanReceiver", "SSID||BSSID Target NOT found")
         }
     }
 }

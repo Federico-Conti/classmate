@@ -1,3 +1,21 @@
 <resources>
     <string name="app_name">childapp</string>
+
+    <!-- Child Information -->
+    <string name="config_child_id">s4991779</string>
+    <string name="config_child_name">Gino</string>
+    <string name="config_child_surname">Paoli</string>
+
+    <!-- WiFi Target -->
+    <string name="config_target_ssid">badc0ff3</string>
+    <string name="config_target_bssid">2a:89:24:33:08:02</string>
+
+    <!-- WiFi Scan Processor Settings -->
+    <integer name="config_window_size">10</integer>
+    <integer name="config_threshold_dbm">-45</integer>
+    <integer name="config_stable_decisions_needed">3</integer>
+
+    <!-- Scan Intervals (milliseconds) -->
+    <integer name="config_scan_interval_ms">1000</integer>
+    <integer name="config_wifi_check_interval_ms">10000</integer>
 </resources>

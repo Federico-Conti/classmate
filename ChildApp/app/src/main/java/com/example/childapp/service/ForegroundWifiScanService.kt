@@ -10,6 +10,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.getSystemService
+import com.example.childapp.R
 import com.example.childapp.data.firestore.AttendanceRepository
 import com.example.childapp.util.Notifications
 import com.example.childapp.wifi.WifiScanProcessor
@@ -35,19 +36,22 @@ class ForegroundWifiScanService : Service() {
 
     private lateinit var wifiManager: WifiManager
     private lateinit var receiver: WifiScanReceiver
-
-    private val processor = WifiScanProcessor(
-        windowSize = 10,
-        thresholdDbm = -45,
-        stableDecisionsNeeded = 3
-    )
-
+    private lateinit var processor: WifiScanProcessor
     private val repo = AttendanceRepository()
     private var lastType: String? = null
 
     @SuppressLint("ForegroundServiceType")
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate() {
+
+         processor = WifiScanProcessor(
+            windowSize = resources.getInteger(R.integer.config_window_size),
+            thresholdDbm = resources.getInteger(R.integer.config_threshold_dbm),
+            stableDecisionsNeeded = resources.getInteger(R.integer.config_stable_decisions_needed)
+        )
+
+
+
         Log.i("ForegroundWifiScanService", "Service onCreate")
         super.onCreate()
 
@@ -129,6 +133,9 @@ class ForegroundWifiScanService : Service() {
 
     @SuppressLint("ForegroundServiceType")
     private suspend fun scanLoop() {
+        val scanInterval = resources.getInteger(R.integer.config_scan_interval_ms).toLong()
+        val wifiCheckInterval = resources.getInteger(R.integer.config_wifi_check_interval_ms).toLong()
+
         while (true) {
             val wifiEnabled = wifiManager.isWifiEnabled
             if (!wifiEnabled) {
@@ -138,7 +145,7 @@ class ForegroundWifiScanService : Service() {
                     Notifications.NOTIF_ID,
                     Notifications.foregroundNotification(this, "Wi-Fi disabled!")
                 )
-                delay(10_000)
+                delay(wifiCheckInterval)
                 continue
             }
             notifyWifiState(wifiEnabled) //Notify MainActivity
@@ -152,7 +159,7 @@ class ForegroundWifiScanService : Service() {
                     Notifications.foregroundNotification(this, "Wi-Fi/Location permissions missing")
                 )
             }
-            delay(2500)
+            delay(scanInterval) //37500
         }
     }
 
