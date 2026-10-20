@@ -10,6 +10,7 @@ import com.example.parentapp.model.Child
 import com.example.parentapp.model.Parent
 import com.example.parentapp.model.HistoryState
 import com.example.parentapp.model.PresenceStatus
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -71,7 +72,10 @@ class ParentViewModel(app: Application) : AndroidViewModel(app) {
     private val _historyUiState = MutableStateFlow<HistoryState>(HistoryState())
     val historyUiState: StateFlow<HistoryState> = _historyUiState.asStateFlow()
 
-    private var historyCursor: com.google.firebase.firestore.DocumentSnapshot? = null
+    private var historyCursor: String? = null
+    private var historyOpenChildId: String? = null
+    private var historyGeneration = 0L
+    private var historyJob: Job? = null
 
     init {
         // If DataStore has parentId => auto login
@@ -163,6 +167,7 @@ class ParentViewModel(app: Application) : AndroidViewModel(app) {
         if (children.none { it.id == childId } || _selectedChildId.value == childId) return
         _selectedChildId.value = childId
         _confirmedAttendance.value = null
+        historyOpenChildId = null
         resetHistory()
         mqtt.selectChild(childId)
         viewModelScope.launch { repo.saveSelectedChildId(childId) }
@@ -174,6 +179,7 @@ class ParentViewModel(app: Application) : AndroidViewModel(app) {
             _selectedChildId.value = null
             _confirmedAttendance.value = null
             mqtt.selectChild(null)
+            historyOpenChildId = null
 
             repo.clearParentId()
             _parent.value = null
@@ -185,63 +191,75 @@ class ParentViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // History
+    fun openHistory(childId: String) {
+        if (_selectedChildId.value != childId) return
+        historyOpenChildId = childId
+        resetHistory()
+        refreshHistory(childId)
+    }
+
+    fun closeHistory(childId: String) {
+        if (historyOpenChildId != childId) return
+        historyOpenChildId = null
+        resetHistory()
+    }
+
+    fun refreshOpenHistory() {
+        viewModelScope.launch { historyOpenChildId?.let(::refreshHistory) }
+    }
 
     fun refreshHistory(childId: String) {
-        viewModelScope.launch {
-            _historyUiState.update { it.copy(isRefreshing = true, error = null) }
-            historyCursor = null
-
-            runCatching { repo.getAttendancePage(childId, pageSize = 20, startAfterSnapshot = null) }
-                .onSuccess { page ->
-                    historyCursor = page.nextCursor
-                    _historyUiState.value = HistoryState(
-                        items = page.records,
-                        isRefreshing = false,
-                        isLoadingMore = false,
-                        endReached = page.records.isEmpty(),
-                        error = null
-                    )
-                }
-                .onFailure { e ->
-                    _historyUiState.update { it.copy(isRefreshing = false, error = e.message ?: "History error") }
-                }
+        if (historyOpenChildId != childId || _selectedChildId.value != childId) return
+        historyJob?.cancel()
+        val generation = ++historyGeneration
+        val code = parentIdInput.value
+        _historyUiState.update { it.copy(isRefreshing = true, isLoadingMore = false, error = null) }
+        historyJob = viewModelScope.launch {
+            val result = runCatching { repo.getAttendancePage(childId, code, pageSize = 20, cursor = null) }
+            if (generation != historyGeneration || historyOpenChildId != childId) return@launch
+            result.onSuccess { page ->
+                historyCursor = page.nextCursor
+                _historyUiState.value = HistoryState(
+                    items = page.records,
+                    endReached = page.nextCursor == null
+                )
+            }.onFailure { error ->
+                _historyUiState.update { it.copy(isRefreshing = false, error = error.message ?: "History error") }
+            }
         }
     }
 
     fun loadMoreHistory(childId: String) {
         val state = _historyUiState.value
-        if (state.isLoadingMore || state.endReached || state.isRefreshing) return
+        val cursor = historyCursor ?: return
+        if (historyOpenChildId != childId || _selectedChildId.value != childId ||
+            state.isLoadingMore || state.isRefreshing || state.endReached || state.error != null) return
 
-        viewModelScope.launch {
-            _historyUiState.update { it.copy(isLoadingMore = true, error = null) }
-
-            val cursor = historyCursor
-            runCatching { repo.getAttendancePage(childId, pageSize = 20, startAfterSnapshot = cursor) }
-                .onSuccess { page ->
-                    historyCursor = page.nextCursor
-                    _historyUiState.update { oldState ->
-                        val existingKeys = oldState.items.map { it.id }.toSet()
-                        val filteredNewRecords = page.records.filter { it.id !in existingKeys }
-                        val newItems = oldState.items + filteredNewRecords
-
-                        oldState.copy(
-                            items = newItems,
-                            isLoadingMore = false,
-                            endReached = page.records.size < 20,
-                            error = null
-                        )
-                    }
+        val generation = historyGeneration
+        val code = parentIdInput.value
+        _historyUiState.update { it.copy(isLoadingMore = true, error = null) }
+        historyJob = viewModelScope.launch {
+            val result = runCatching { repo.getAttendancePage(childId, code, pageSize = 20, cursor = cursor) }
+            if (generation != historyGeneration || historyOpenChildId != childId) return@launch
+            result.onSuccess { page ->
+                historyCursor = page.nextCursor
+                _historyUiState.update { oldState ->
+                    val existingIds = oldState.items.map { it.id }.toSet()
+                    oldState.copy(
+                        items = oldState.items + page.records.filter { it.id !in existingIds },
+                        isLoadingMore = false,
+                        endReached = page.nextCursor == null
+                    )
                 }
-                .onFailure { e ->
-                    _historyUiState.update { it.copy(isLoadingMore = false, error = e.message ?: "Load more error") }
-                }
+            }.onFailure { error ->
+                _historyUiState.update { it.copy(isLoadingMore = false, error = error.message ?: "Load more error") }
+            }
         }
     }
 
-
-
     private fun resetHistory() {
+        historyJob?.cancel()
+        historyGeneration++
         historyCursor = null
         _historyUiState.value = HistoryState()
     }

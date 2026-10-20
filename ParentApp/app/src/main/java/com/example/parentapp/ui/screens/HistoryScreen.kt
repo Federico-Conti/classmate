@@ -1,6 +1,9 @@
 package com.example.parentapp.ui.screens
 
 import android.os.Build
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -18,15 +21,20 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.parentapp.model.AttendanceRecord
 import com.example.parentapp.ui.ParentViewModel
 import com.example.parentapp.ui.theme.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.atomic.AtomicBoolean
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,16 +45,54 @@ fun HistoryScreen(
     onBack: () -> Unit
 ) {
     val state = vm.historyUiState.collectAsState().value
+    val selectedChildId = vm.selectedChildId.collectAsState().value
     val listState = rememberLazyListState() //monitors the scroll position of the LazyColumn
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Reload every time open the screen (or change childId)
-    LaunchedEffect(childId) {
-        vm.refreshHistory(childId)
+    DisposableEffect(childId, lifecycleOwner, context) {
+        vm.openHistory(childId)
+        var wasStopped = false
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> wasStopped = true
+                Lifecycle.Event.ON_START -> if (wasStopped) {
+                    wasStopped = false
+                    vm.refreshOpenHistory()
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+
+        val connectivity = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val hadNetwork = AtomicBoolean(connectivity.activeNetwork != null)
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onLost(network: Network) {
+                hadNetwork.set(false)
+            }
+
+            override fun onAvailable(network: Network) {
+                if (!hadNetwork.getAndSet(true) &&
+                    lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                    vm.refreshOpenHistory()
+                }
+            }
+        }
+        connectivity.registerDefaultNetworkCallback(callback)
+        onDispose {
+            connectivity.unregisterNetworkCallback(callback)
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            vm.closeHistory(childId)
+        }
     }
 
-    // Infinite scroll
-    LaunchedEffect(listState.firstVisibleItemIndex, state.items.size, state.endReached, state.isLoadingMore) {
-        if (!state.endReached && !state.isLoadingMore) {
+    LaunchedEffect(childId, selectedChildId) {
+        if (selectedChildId != null && selectedChildId != childId) onBack()
+    }
+
+    LaunchedEffect(listState.firstVisibleItemIndex, state.items.size, state.endReached, state.isLoadingMore, state.error) {
+        if (!state.endReached && !state.isLoadingMore && !state.isRefreshing && state.error == null) {
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
             val total = listState.layoutInfo.totalItemsCount
             if (total > 0 && lastVisible >= total - 5) {
@@ -103,7 +149,7 @@ fun HistoryScreen(
                 }
 
 
-                if (!state.isRefreshing && state.items.isEmpty()) {
+                if (!state.isRefreshing && state.items.isEmpty() && state.error == null) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -137,7 +183,7 @@ fun HistoryScreen(
                         bottom = AppDimensions.spacingLarge
                     )
                 ) {
-                    itemsIndexed(state.items) { index, item ->
+                    itemsIndexed(state.items, key = { _, item -> item.id }) { index, item ->
                         TimelineEventItem(
                             record = item,
                             isFirst = index == 0,

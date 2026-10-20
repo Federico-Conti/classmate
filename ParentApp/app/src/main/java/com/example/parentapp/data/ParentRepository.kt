@@ -1,26 +1,23 @@
 package com.example.parentapp.data
 
 import android.content.Context
+import android.net.Uri
 import com.example.parentapp.model.AttendanceRecord
 import com.example.parentapp.model.Child
 import com.example.parentapp.model.Parent
-import com.google.firebase.Timestamp
-import com.google.firebase.firestore.DocumentSnapshot
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 class ParentRepository(
     context: Context
 ) {
     private val prefs = UserPreferencesRepository(context)
-    private val firestore by lazy { FirebaseFirestore.getInstance() }
 
     // DataStore4
     val parentIdFlow: Flow<String?> = prefs.parentIdFlow
@@ -76,41 +73,51 @@ class ParentRepository(
 
     data class AttendancePage(
         val records: List<AttendanceRecord>,
-        val nextCursor: DocumentSnapshot? // current cursor
+        val nextCursor: String?
     )
 
-    /**
-     * Paging for History: takes a page of records sorted by time desc.
-     * startAfterSnapshot = previous page cursor (null for first page).
-     */
     suspend fun getAttendancePage(
         childId: String,
-        pageSize: Long,
-        startAfterSnapshot: DocumentSnapshot?
-    ): AttendancePage {
-        var q = firestore.collection("childrens").document(childId)
-            .collection("attendance")
-            .orderBy("time", Query.Direction.DESCENDING)
-            .limit(pageSize)
-
-        if (startAfterSnapshot != null) {
-            q = q.startAfter(startAfterSnapshot)
+        code: String,
+        pageSize: Int,
+        cursor: String?
+    ): AttendancePage = withContext(Dispatchers.IO) {
+        val uri = Uri.parse("http://${com.example.parentapp.BuildConfig.POC_HOST}:1880/api/v1/children")
+            .buildUpon()
+            .appendPath(childId)
+            .appendPath("events")
+            .appendQueryParameter("limit", pageSize.toString())
+            .apply { cursor?.let { appendQueryParameter("cursor", it) } }
+            .build()
+        val connection = (URL(uri.toString()).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 5_000
+            readTimeout = 5_000
+            setRequestProperty("x-parent-code", code)
         }
-
-        val snap = q.get().await()
-        val docs = snap.documents
-        val records = docs.map { it.toAttendanceRecord() }
-        val next = if (docs.size == pageSize.toInt()) docs.lastOrNull() else null
-        return AttendancePage(records = records, nextCursor = next) // update cursor
-    }
-
-    private fun DocumentSnapshot.toAttendanceRecord(): AttendanceRecord {
-        val type = getString("type").orEmpty()
-        val ts = getTimestamp("time") ?: Timestamp.now()
-        return AttendanceRecord(
-            id = id,
-            type = type,
-            time = ts.toDate().time
-        )
+        try {
+            if (connection.responseCode != 200) {
+                throw java.io.IOException("History request failed: HTTP ${connection.responseCode}")
+            }
+            val result = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+            val events = result.getJSONArray("events")
+            val records = (0 until events.length()).map { index ->
+                val event = events.getJSONObject(index)
+                if (event.getString("childId") != childId) {
+                    throw java.io.IOException("History response contains an unrelated child")
+                }
+                AttendanceRecord(
+                    id = event.getString("eventId"),
+                    type = event.getString("type"),
+                    time = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX", Locale.US)
+                        .parse(event.getString("receivedAt"))!!.time
+                )
+            }.distinctBy { it.id }
+            AttendancePage(
+                records = records,
+                nextCursor = if (result.isNull("nextCursor")) null else result.getString("nextCursor")
+            )
+        } finally {
+            connection.disconnect()
+        }
     }
 }
