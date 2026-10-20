@@ -79,7 +79,7 @@ fun LoginScreen(
             Spacer(Modifier.height(AppDimensions.spacingSmall))
 
             Text(
-                text = "Enter the username provided by the school",
+                text = "Enter the code provided by the school",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -90,7 +90,7 @@ fun LoginScreen(
             OutlinedTextField(
                 value = parentIdInput,
                 onValueChange = onParentIdChange,
-                label = { Text("username") },
+                label = { Text("Parent code") },
                 placeholder = { Text("") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),

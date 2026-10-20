@@ -7,92 +7,71 @@ import com.example.parentapp.model.Parent
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
-import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 class ParentRepository(
-    context: Context,
-    private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
+    context: Context
 ) {
     private val prefs = UserPreferencesRepository(context)
+    private val firestore by lazy { FirebaseFirestore.getInstance() }
 
     // DataStore4
     val parentIdFlow: Flow<String?> = prefs.parentIdFlow
+    val selectedChildIdFlow: Flow<String?> = prefs.selectedChildIdFlow
     suspend fun saveParentId(parentId: String) = prefs.saveParentId(parentId)
+    suspend fun saveSelectedChildId(childId: String) = prefs.saveSelectedChildId(childId)
     suspend fun clearParentId() = prefs.clearParentId()
 
-    // Firestore
-    suspend fun getParent(parentId: String): Parent? {
-        val doc = firestore.collection("parents").document(parentId).get().await()
-        if (!doc.exists()) return null
-
-        val name = doc.getString("name").orEmpty()
-        val surname = doc.getString("surname").orEmpty()
-        val childrens = (doc.get("childrens") as? List<*>)?.mapNotNull { it as? String }.orEmpty()
-
-        return Parent(
-            id = parentId,
-            name = name,
-            surname = surname,
-            childrens = childrens
-        )
-    }
-
-
-    suspend fun getChildren(childIds: List<String>): List<Child> {
-        if (childIds.isEmpty()) return emptyList()
-
-        val chunks = childIds.chunked(10)
-        val results = mutableListOf<Child>()
-
-        for (chunk in chunks) {
-            val snap = firestore.collection("childrens")
-                .whereIn(com.google.firebase.firestore.FieldPath.documentId(), chunk)
-                .get()
-                .await()
-
-            results += snap.documents.map { d ->
-                Child(
-                    id = d.id,
-                    name = d.getString("name").orEmpty(),
-                    surname = d.getString("surname").orEmpty()
-                )
-            }
+    suspend fun getParent(code: String): Parent? = withContext(Dispatchers.IO) {
+        val connection = (URL("http://${com.example.parentapp.BuildConfig.POC_HOST}:1880/api/v1/parents/resolve")
+            .openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            doOutput = true
+            connectTimeout = 5_000
+            readTimeout = 5_000
+            setRequestProperty("Content-Type", "application/json")
         }
-
-        return results.sortedWith(compareBy({ it.surname.lowercase() }, { it.name.lowercase() }))
+        try {
+            connection.outputStream.use { it.write(JSONObject().put("code", code).toString().toByteArray(Charsets.UTF_8)) }
+            if (connection.responseCode == 404) return@withContext null
+            if (connection.responseCode != 200) throw java.io.IOException("Code resolution failed: HTTP ${connection.responseCode}")
+            val result = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+            val children = result.getJSONArray("children")
+            Parent(
+                id = result.getString("id"),
+                name = result.optString("name"),
+                surname = result.optString("surname"),
+                childrens = (0 until children.length()).map { children.getJSONObject(it).getString("id") }
+            )
+        } finally {
+            connection.disconnect()
+        }
     }
 
-    /**
-     * Real-time listener on the last N records.
-     * Each new record on Firestore automatically updates the UI.
-     *
-     * addSnapshotListener: opens a two-way communication channel. Every time data changes in the DB, Firestore "pushes" a new data packet (snap) in app.
-     */
-    fun listenLastAttendance(childId: String, limit: Long = 5): Flow<List<AttendanceRecord>> = callbackFlow {
-        //bidirectional callback channel register
-        var reg: ListenerRegistration? = null
-
-        reg = firestore.collection("childrens").document(childId)
-            .collection("attendance")
-            .orderBy("time", Query.Direction.DESCENDING)
-            .limit(limit)
-            .addSnapshotListener { snap, err ->
-                if (err != null) {
-                    close(err)
-                    return@addSnapshotListener
-                }
-                val records = snap?.documents.orEmpty().map { doc ->
-                    doc.toAttendanceRecord() //cast into UiState.Data(records)
-                }
-                trySend(records) //send 5 last records to Coroutine
+    suspend fun getChildren(code: String): List<Child> = withContext(Dispatchers.IO) {
+        val connection = (URL("http://${com.example.parentapp.BuildConfig.POC_HOST}:1880/api/v1/children")
+            .openConnection() as HttpURLConnection).apply {
+            connectTimeout = 5_000
+            readTimeout = 5_000
+            setRequestProperty("x-parent-code", code)
+        }
+        try {
+            if (connection.responseCode != 200) throw java.io.IOException("Children request failed: HTTP ${connection.responseCode}")
+            val children = JSONObject(connection.inputStream.bufferedReader().use { it.readText() }).getJSONArray("children")
+            (0 until children.length()).map { index ->
+                val child = children.getJSONObject(index)
+                Child(child.getString("id"), child.optString("name"), child.optString("surname"))
             }
-
-        awaitClose { reg?.remove() } // It does not end until the Flow is cancelled.
+        } finally {
+            connection.disconnect()
+        }
     }
 
     data class AttendancePage(

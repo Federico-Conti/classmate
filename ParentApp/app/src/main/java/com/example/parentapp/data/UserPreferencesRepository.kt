@@ -15,11 +15,19 @@ class UserPreferencesRepository(
 ) {
     private object Keys {
         val PARENT_ID: Preferences.Key<String> = stringPreferencesKey("parent_id")
+        val SELECTED_CHILD_ID: Preferences.Key<String> = stringPreferencesKey("selected_child_id")
     }
 
     /** Stream del Parent ID salvato (null se non presente). */
     val parentIdFlow: Flow<String?> =
         context.dataStore.data.map { prefs -> prefs[Keys.PARENT_ID] }
+
+    val selectedChildIdFlow: Flow<String?> =
+        context.dataStore.data.map { prefs -> prefs[Keys.SELECTED_CHILD_ID] }
+
+    suspend fun saveSelectedChildId(childId: String) {
+        context.dataStore.edit { it[Keys.SELECTED_CHILD_ID] = childId }
+    }
 
     suspend fun saveParentId(parentId: String) {
         context.dataStore.edit { prefs ->
@@ -30,6 +38,7 @@ class UserPreferencesRepository(
     suspend fun clearParentId() {
         context.dataStore.edit { prefs ->
             prefs.remove(Keys.PARENT_ID)
+            prefs.remove(Keys.SELECTED_CHILD_ID)
         }
     }
 }

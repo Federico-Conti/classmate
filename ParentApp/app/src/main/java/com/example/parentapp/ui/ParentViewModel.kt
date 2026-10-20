@@ -4,18 +4,24 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.parentapp.data.ParentRepository
-import com.example.parentapp.model.AttendanceRecord
+import com.example.parentapp.data.AttendanceMqttClient
+import com.example.parentapp.data.ConfirmedAttendance
 import com.example.parentapp.model.Child
 import com.example.parentapp.model.Parent
 import com.example.parentapp.model.HistoryState
 import com.example.parentapp.model.PresenceStatus
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class ParentViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = ParentRepository(app.applicationContext)
+    private val mqtt = AttendanceMqttClient { event ->
+        if (_selectedChildId.value == event.childId && _confirmedAttendance.value?.eventId != event.eventId) {
+            _confirmedAttendance.value = event
+        }
+    }
+    val realtimeConfigurationError: String? get() = mqtt.configurationError
 
     // Navigation start destination (Login/Home)
     private val _startDestination = MutableStateFlow("login")
@@ -42,35 +48,24 @@ class ParentViewModel(app: Application) : AndroidViewModel(app) {
             list.firstOrNull { it.id == id }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val last5Records: StateFlow<UiState<List<AttendanceRecord>>> =
-        _selectedChildId
-            //flatMapLatest ensures listening to the last selected ID on _selectedChildId.
-            .flatMapLatest { childId ->
-                if (childId == null) {
-                    // If no child is selected (logout), to Idle.
-                    flowOf(UiState.Idle) //return a Flow type
-                } else {
-                    repo.listenLastAttendance(childId, limit = 5) // return a Flow type
-                        .map<List<AttendanceRecord>, UiState<List<AttendanceRecord>>> {
-                            UiState.Data(it)
-                        }
-                        .onStart { emit(UiState.Loading) } //is issued loading state before query the database
-                        .catch { e -> emit(UiState.Error(e.message ?: "Realtime listener error")) }
-                }
-            }
-            .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5_000), initialValue = UiState.Idle
-            )
+    private val _confirmedAttendance = MutableStateFlow<ConfirmedAttendance?>(null)
+    val confirmedAttendance: StateFlow<ConfirmedAttendance?> = _confirmedAttendance.asStateFlow()
     val childPresenceStatus: StateFlow<PresenceStatus> =
-        last5Records.map { state ->
-            val records = (state as? UiState.Data)?.value
-            val last = records?.firstOrNull()
-            when {
-                last == null -> PresenceStatus.NoRecords
-                last.isEntry -> PresenceStatus.AtSchool
-                else -> PresenceStatus.NotAtSchool
+        _confirmedAttendance.map { event ->
+            when (event?.type) {
+                "entry" -> PresenceStatus.AtSchool
+                "exit" -> PresenceStatus.NotAtSchool
+                else -> PresenceStatus.NoRecords
             }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PresenceStatus.NoRecords)
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, PresenceStatus.NoRecords)
+
+    fun startRealtime() = mqtt.start()
+    fun stopRealtime() = mqtt.stop()
+
+    override fun onCleared() {
+        mqtt.close()
+        super.onCleared()
+    }
 
     // ---- History Paging ----
     private val _historyUiState = MutableStateFlow<HistoryState>(HistoryState())
@@ -85,7 +80,7 @@ class ParentViewModel(app: Application) : AndroidViewModel(app) {
                 if (!saved.isNullOrBlank()) {
                     _startDestination.value = "home"
                     parentIdInput.value = saved
-                    if (_parent.value == null) {
+                    if (_parent.value == null && _childrenUiState.value !is UiState.Loading) {
                         loadParentAndChildren(saved)
                     }
                 } else {
@@ -102,51 +97,60 @@ class ParentViewModel(app: Application) : AndroidViewModel(app) {
     fun login() {
         val id = parentIdInput.value.trim()
         if (id.isBlank()) {
-            _loginUiState.value = UiState.Error("username is required")
+            _loginUiState.value = UiState.Error("Code is required")
             return
         }
         viewModelScope.launch {
             _loginUiState.value = UiState.Loading
-            val parent = repo.getParent(id)
-            if (parent == null) {
-                _loginUiState.value = UiState.Error("username not found")
+            val parent = runCatching { repo.getParent(id) }.getOrElse { error ->
+                _loginUiState.value = UiState.Error(error.message ?: "Connection failed")
                 return@launch
             }
-            repo.saveParentId(id)
+            if (parent == null) {
+                _loginUiState.value = UiState.Error("Code not found")
+                return@launch
+            }
             _parent.value = parent
+            repo.saveParentId(id)
             _loginUiState.value = UiState.Data(parent)
 
-            loadChildren(parent.childrens)
+            loadChildren(id)
             _startDestination.value = "home"
         }
     }
 
     private fun loadParentAndChildren(parentId: String) {
         viewModelScope.launch {
-            val parent = repo.getParent(parentId)
+            val parent = runCatching { repo.getParent(parentId) }.getOrElse { error ->
+                _childrenUiState.value = UiState.Error(error.message ?: "Connection failed")
+                return@launch
+            }
+            if (repo.parentIdFlow.first() != parentId) return@launch
             if (parent != null) {
                 _parent.value = parent
-                loadChildren(parent.childrens)
+                loadChildren(parentId)
             } else {
                 // If the parent no longer exists, clean
                 repo.clearParentId()
                 _parent.value = null
                 _selectedChildId.value = null
+                _confirmedAttendance.value = null
+                mqtt.selectChild(null)
                 _childrenUiState.value = UiState.Idle
                 _startDestination.value = "login"
             }
         }
     }
 
-    private fun loadChildren(childIds: List<String>) {
+    private fun loadChildren(code: String) {
         viewModelScope.launch {
             _childrenUiState.value = UiState.Loading
-            runCatching { repo.getChildren(childIds) }
-                .onSuccess { list ->
+            runCatching { repo.getChildren(code) to repo.selectedChildIdFlow.first() }
+                .onSuccess { (list, saved) ->
+                    if (_parent.value == null || parentIdInput.value != code) return@onSuccess
                     _childrenUiState.value = UiState.Data(list)
-                    if (list.isNotEmpty() && _selectedChildId.value == null) {
-                        _selectedChildId.value = list.first().id
-                    }
+                    list.firstOrNull { it.id == saved }?.id?.let(::selectChild)
+                        ?: list.firstOrNull()?.id?.let(::selectChild)
                 }
                 .onFailure { e ->
                     _childrenUiState.value = UiState.Error(e.message ?: "Failed to load children")
@@ -155,15 +159,21 @@ class ParentViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun selectChild(childId: String) {
+        val children = (_childrenUiState.value as? UiState.Data)?.value.orEmpty()
+        if (children.none { it.id == childId } || _selectedChildId.value == childId) return
         _selectedChildId.value = childId
-        // Reset history quando cambio child
+        _confirmedAttendance.value = null
         resetHistory()
+        mqtt.selectChild(childId)
+        viewModelScope.launch { repo.saveSelectedChildId(childId) }
     }
 
     fun logout() {
         viewModelScope.launch {
             // FIRST, I reset the selected child
             _selectedChildId.value = null
+            _confirmedAttendance.value = null
+            mqtt.selectChild(null)
 
             repo.clearParentId()
             _parent.value = null

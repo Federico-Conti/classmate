@@ -3,8 +3,6 @@ package com.example.parentapp.ui.screens
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
@@ -16,9 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.parentapp.model.AttendanceRecord
 import com.example.parentapp.ui.components.ChildSelector
-import com.example.parentapp.ui.components.CustomCard
 import com.example.parentapp.ui.components.StatusIndicator
 import com.example.parentapp.ui.theme.*
 import com.example.parentapp.ui.ParentViewModel
@@ -41,7 +37,7 @@ fun HomeScreen(
     val childrenState = vm.childrenUiState.collectAsState().value
     val selectedChild = vm.selectedChild.collectAsState().value
     val status = vm.childPresenceStatus.collectAsState().value
-    val last5 = vm.last5Records.collectAsState().value
+    val confirmed = vm.confirmedAttendance.collectAsState().value
 
     var showLogoutDialog by remember { mutableStateOf(false) }
 
@@ -136,56 +132,19 @@ fun HomeScreen(
             }
 
             StatusIndicator(status = status)
-
-            CustomCard {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(AppDimensions.spacingMedium)
-                ) {
-                    Text(
-                        text = "Latest status",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    when (last5) {
-                        is UiState.Loading -> {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(100.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(AppDimensions.iconLarge)
-                                )
-                            }
-                        }
-                        is UiState.Error -> {
-                            Text(
-                                text = last5.message,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                        is UiState.Data -> {
-                            val list = last5.value
-                            if (list.isEmpty()) {
-                                Text(
-                                    text = "No attendances",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            } else {
-                                LastRecordsTable(list)
-                            }
-                        }
-                        else -> Text(
-                            text = "Select a child to view attendance",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            vm.realtimeConfigurationError?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            if (confirmed != null) {
+                Text(
+                    text = "Last confirmed update: ${formatDateTime(confirmed.time)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -245,68 +204,6 @@ private fun LogoutDialog(
             }
         }
     )
-}
-
-@RequiresApi(Build.VERSION_CODES.O)
-@Composable
-private fun LastRecordsTable(records: List<AttendanceRecord>) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(AppDimensions.spacingSmall)
-    ) {
-        // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = AppDimensions.spacingXSmall),
-            horizontalArrangement = Arrangement.SpaceBetween
-        )
-        {
-        }
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 240.dp),
-            verticalArrangement = Arrangement.spacedBy(AppDimensions.spacingSmall),
-            userScrollEnabled = true
-        ) {
-            items(records) { record ->
-                AttendanceRow(record)
-            }
-        }
-    }
-}
-
-@RequiresApi(Build.VERSION_CODES.O)
-@Composable
-private fun AttendanceRow(record: AttendanceRecord) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = AppDimensions.spacingSmall),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = formatDateTime(record.time),
-            style = MaterialTheme.typography.bodyMedium
-        )
-
-        Surface(
-            color = if (record.isEntry) EntryBackground else ExitBackground,
-            shape = MaterialTheme.shapes.small,
-            contentColor = if (record.isEntry) EntryColor else ExitColor
-        ) {
-            Text(
-                text = if (record.isEntry) "Entry" else "Exit",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(
-                    horizontal = AppDimensions.spacingMedium,
-                    vertical = AppDimensions.spacingXSmall
-                )
-            )
-        }
-    }
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
