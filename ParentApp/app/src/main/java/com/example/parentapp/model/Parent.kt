@@ -4,7 +4,7 @@ data class Parent(
     val id: String,
     val name: String,
     val surname: String,
-    val childrens: List<String>
+    val childrens: List<Child>
 ){
     val fullName: String get() = "$name $surname"
 }

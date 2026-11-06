@@ -45,27 +45,11 @@ class ParentRepository(
                 id = result.getString("id"),
                 name = result.optString("name"),
                 surname = result.optString("surname"),
-                childrens = (0 until children.length()).map { children.getJSONObject(it).getString("id") }
+                childrens = (0 until children.length()).map { index ->
+                    val child = children.getJSONObject(index)
+                    Child(child.getString("id"), child.optString("name"), child.optString("surname"))
+                }
             )
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    suspend fun getChildren(code: String): List<Child> = withContext(Dispatchers.IO) {
-        val connection = (URL("http://${com.example.parentapp.BuildConfig.POC_HOST}:1880/api/v1/children")
-            .openConnection() as HttpURLConnection).apply {
-            connectTimeout = 5_000
-            readTimeout = 5_000
-            setRequestProperty("x-parent-code", code)
-        }
-        try {
-            if (connection.responseCode != 200) throw java.io.IOException("Children request failed: HTTP ${connection.responseCode}")
-            val children = JSONObject(connection.inputStream.bufferedReader().use { it.readText() }).getJSONArray("children")
-            (0 until children.length()).map { index ->
-                val child = children.getJSONObject(index)
-                Child(child.getString("id"), child.optString("name"), child.optString("surname"))
-            }
         } finally {
             connection.disconnect()
         }

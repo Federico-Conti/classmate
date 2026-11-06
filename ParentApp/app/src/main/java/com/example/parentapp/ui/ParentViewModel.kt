@@ -118,7 +118,7 @@ class ParentViewModel(app: Application) : AndroidViewModel(app) {
             repo.saveParentId(id)
             _loginUiState.value = UiState.Data(parent)
 
-            loadChildren(id)
+            loadChildren(parent, id)
             _startDestination.value = "home"
         }
     }
@@ -132,7 +132,7 @@ class ParentViewModel(app: Application) : AndroidViewModel(app) {
             if (repo.parentIdFlow.first() != parentId) return@launch
             if (parent != null) {
                 _parent.value = parent
-                loadChildren(parentId)
+                loadChildren(parent, parentId)
             } else {
                 // If the parent no longer exists, clean
                 repo.clearParentId()
@@ -146,15 +146,15 @@ class ParentViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun loadChildren(code: String) {
+    private fun loadChildren(parent: Parent, code: String) {
         viewModelScope.launch {
             _childrenUiState.value = UiState.Loading
-            runCatching { repo.getChildren(code) to repo.selectedChildIdFlow.first() }
-                .onSuccess { (list, saved) ->
+            runCatching { repo.selectedChildIdFlow.first() }
+                .onSuccess { saved ->
                     if (_parent.value == null || parentIdInput.value != code) return@onSuccess
-                    _childrenUiState.value = UiState.Data(list)
-                    list.firstOrNull { it.id == saved }?.id?.let(::selectChild)
-                        ?: list.firstOrNull()?.id?.let(::selectChild)
+                    _childrenUiState.value = UiState.Data(parent.childrens)
+                    parent.childrens.firstOrNull { it.id == saved }?.id?.let(::selectChild)
+                        ?: parent.childrens.firstOrNull()?.id?.let(::selectChild)
                 }
                 .onFailure { e ->
                     _childrenUiState.value = UiState.Error(e.message ?: "Failed to load children")
